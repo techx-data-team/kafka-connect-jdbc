@@ -56,6 +56,8 @@ import io.confluent.connect.jdbc.util.TableDefinition;
 import io.confluent.connect.jdbc.util.TableId;
 import io.confluent.connect.jdbc.util.ColumnDefinition.Mutability;
 import io.confluent.connect.jdbc.util.ColumnDefinition.Nullability;
+import io.confluent.connect.jdbc.util.ExpressionBuilder.Transform;
+
 import org.apache.kafka.connect.errors.ConnectException;
 
 import static io.confluent.connect.jdbc.source.JdbcSourceConnectorConfig.TIMESTAMP_COLUMN_NAME_CONFIG;
@@ -73,7 +75,8 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
   static final int DATETIMEOFFSET = -155;
 
   /**
-   * This is the format of the string form of DATETIMEOFFSET values, and used to parse such
+   * This is the format of the string form of DATETIMEOFFSET values, and used to
+   * parse such
    * string values into {@link java.sql.Timestamp} values.
    * https://docs.microsoft.com/en-us/sql/t-sql/data-types/datetimeoffset-transact-sql
    */
@@ -96,7 +99,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
   public static class Provider extends SubprotocolBasedProvider {
     public Provider() {
       super(SqlServerDatabaseDialect.class.getSimpleName(), "microsoft:sqlserver", "sqlserver",
-            "jtds:sqlserver");
+          "jtds:sqlserver");
     }
 
     @Override
@@ -133,8 +136,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
       SchemaPair schemaPair,
       FieldsMetadata fieldsMetadata,
       TableDefinition tableDefinition,
-      InsertMode insertMode
-  ) {
+      InsertMode insertMode) {
     return new PreparedStatementBinder(
         this,
         statement,
@@ -142,8 +144,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
         schemaPair,
         fieldsMetadata,
         tableDefinition,
-        insertMode
-    );
+        insertMode);
   }
 
   @Override
@@ -152,8 +153,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
       int index,
       Schema schema,
       Object value,
-      ColumnDefinition colDef
-  ) throws SQLException {
+      ColumnDefinition colDef) throws SQLException {
     if (value == null) {
       Integer type = getSqlTypeForSchema(schema);
       if (type != null) {
@@ -177,8 +177,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
       int index,
       Schema schema,
       Object value,
-      ColumnDefinition colDef
-  ) throws SQLException {
+      ColumnDefinition colDef) throws SQLException {
     if (colDef == null) {
       return super.maybeBindPrimitive(statement, index, schema, value);
     }
@@ -197,10 +196,14 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
   }
 
   /**
-   * Check if the mssql server instance, the connector is configured, to is an mssql version with
-   * the breaking Datetime change (MSSQL Server version 2016 or newer). If unable to get version
+   * Check if the mssql server instance, the connector is configured, to is an
+   * mssql version with
+   * the breaking Datetime change (MSSQL Server version 2016 or newer). If unable
+   * to get version
    * assume non breaking datetime version
-   * @return if mssql server instance connected to, is version with breaking datetime or not
+   * 
+   * @return if mssql server instance connected to, is version with breaking
+   *         datetime or not
    */
   public boolean versionWithBreakingDatetimeChange() {
     String jdbcDatabaseMajorVersion = jdbcDriverInfo().productVersion().split("\\.")[0];
@@ -209,9 +212,9 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
       jdbcDatabaseMajorVersionValue = Integer.parseInt(jdbcDatabaseMajorVersion);
     } catch (NumberFormatException e) {
       log.warn("Could not retrieve MSSQL Database version from JDBC."
-              + "Version is used to verify timestamp mode compatibility with "
-              + "Sql Server Datetime columns. Defaulting to pre 2016 version."
-              + "Error:" + e.toString());
+          + "Version is used to verify timestamp mode compatibility with "
+          + "Sql Server Datetime columns. Defaulting to pre 2016 version."
+          + "Error:" + e.toString());
     }
     return (jdbcDatabaseMajorVersionValue >= MSSQL_2016_VERSION);
   }
@@ -229,8 +232,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
       SchemaBuilder builder,
       String fieldName,
       int sqlType,
-      boolean optional
-  ) {
+      boolean optional) {
     // Handle SQL Server specific types first
     switch (sqlType) {
       case DATETIMEOFFSET:
@@ -249,8 +251,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
       ColumnMapping mapping,
       ColumnDefinition defn,
       int col,
-      boolean isJdbc4
-  ) {
+      boolean isJdbc4) {
     // Handle any SQL Server specific data types first
     switch (defn.type()) {
       case DATETIMEOFFSET:
@@ -268,8 +269,10 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
   }
 
   /**
-   * Get the {@link java.sql.Timestamp} for the DATETIMEOFFSET column. This requires that the
-   * JDBC driver supports SQL Server's DATETIMEOFFSET data type and converting to a
+   * Get the {@link java.sql.Timestamp} for the DATETIMEOFFSET column. This
+   * requires that the
+   * JDBC driver supports SQL Server's DATETIMEOFFSET data type and converting to
+   * a
    * {@link java.sql.Timestamp} via {@link ResultSet#getTimestamp(int, Calendar)}.
    *
    * @param rs  the result set; never null
@@ -283,8 +286,11 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
 
   /**
    * Get the {@link java.sql.Timestamp} for the DATETIMEOFFSET column.
-   * The jTDS driver doesn't support DATETIMEOFFSET, so the recommended approach for legacy driver
-   * (see https://docs.microsoft.com/en-us/sql/t-sql/data-types/datetimeoffset-transact-sql) is to
+   * The jTDS driver doesn't support DATETIMEOFFSET, so the recommended approach
+   * for legacy driver
+   * (see
+   * https://docs.microsoft.com/en-us/sql/t-sql/data-types/datetimeoffset-transact-sql)
+   * is to
    * get the value in string form and then parse it into a timestamp.
    *
    * @param rs  the result set; never null
@@ -294,18 +300,19 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
    */
   protected Object convertDateTimeOffsetFromString(
       ResultSet rs,
-      int col
-  ) throws SQLException {
+      int col) throws SQLException {
     String value = rs.getString(col);
     return value == null ? null : dateTimeOffsetFrom(rs.getString(col), timeZone());
   }
 
   /**
-   * Utility method to parse the string form of a SQL Server DATETIMEOFFSET value into a
+   * Utility method to parse the string form of a SQL Server DATETIMEOFFSET value
+   * into a
    * {@link java.sql.Timestamp} value.
    *
    * @param value    the string DATETIMEOFFSET value; never null
-   * @param timeZone the timezone in which the {@link java.sql.Timestamp} should be defined; may
+   * @param timeZone the timezone in which the {@link java.sql.Timestamp} should
+   *                 be defined; may
    *                 not be null
    * @return the equivalent {@link java.sql.Timestamp}; never null
    */
@@ -368,8 +375,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
   @Override
   public String buildDropTableStatement(
       TableId table,
-      DropOptions options
-  ) {
+      DropOptions options) {
     ExpressionBuilder builder = expressionBuilder();
 
     if (options.ifExists()) {
@@ -389,8 +395,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
   @Override
   public List<String> buildAlterTable(
       TableId table,
-      Collection<SinkRecordField> fields
-  ) {
+      Collection<SinkRecordField> fields) {
     ExpressionBuilder builder = expressionBuilder();
     builder.append("ALTER TABLE ");
     builder.append(table);
@@ -399,69 +404,141 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
     return Collections.singletonList(builder.toString());
   }
 
+  protected Transform<ColumnId> columnValueVariables(
+      TableDefinition tableDefn,
+      final boolean isDeclaration) {
+    if (isDeclaration) {
+      return (builder, columnId) -> {
+        ColumnDefinition defn = tableDefn.definitionForColumn(columnId.name());
+        builder.append("DECLARE @");
+        builder.append(columnId.name());
+        builder.append(" ");
+        builder.append(defn.typeName());
+        builder.append(" = ?;");
+      };
+    } else {
+      return (builder, columnId) -> {
+        builder.append("@");
+        builder.append(columnId.name());
+      };
+    }
+
+  }
+
+  protected Transform<ColumnId> columnNamesVariableCondition() {
+    return (builder, columnId) -> {
+      builder.appendColumnName(columnId.name());
+      builder.append(" = @");
+      builder.append(columnId.name());
+    };
+  }
+
   @Override
   public String buildUpsertQueryStatement(
       TableId table,
       Collection<ColumnId> keyColumns,
-      Collection<ColumnId> nonKeyColumns
-  ) {
+      Collection<ColumnId> nonKeyColumns,
+      TableDefinition tableDefn) {
+    /*
+     * Sample SQL
+     * INSERT dbo.AccountDetails ( Email, Etc )
+     * SELECT @Email, @Etc
+     * WHERE NOT EXISTS (
+     * SELECT *
+     * FROM dbo.AccountDetails WITH (UPDLOCK, SERIALIZABLE)
+     * WHERE Email = @Email
+     * )
+     * 
+     * IF (@@ROWCOUNT = 0)
+     * BEGIN
+     * UPDATE TOP (1) dbo.AccountDetails
+     * SET Etc = @Etc
+     * WHERE Email = @Email;
+     * END
+     */
     ExpressionBuilder builder = expressionBuilder();
-    builder.append("merge into ");
+    builder.append("BEGIN\n");
+    // builder.append("TRANSACTION ISOLATION LEVEL SERIALIZABLE;");
+    // Declaration
+    builder.appendList()
+        .delimitedBy(";")
+        .transformedBy(this.columnValueVariables(tableDefn, true))
+        .of(keyColumns, nonKeyColumns);
+    // INSERT
+    /*
+     * INSERT dbo.AccountDetails ( Email, Etc )
+     * SELECT @Email, @Etc
+     * WHERE NOT EXISTS (
+     * SELECT *
+     * FROM dbo.AccountDetails WITH (UPDLOCK, SERIALIZABLE)
+     * WHERE Email = @Email
+     * )
+     * 
+     */
+
+    builder.append("; INSERT ");
     builder.append(table);
-    builder.append(" with (HOLDLOCK) AS target using (select ");
+    builder.append("(");
     builder.appendList()
-           .delimitedBy(", ")
-           .transformedBy(ExpressionBuilder.columnNamesWithPrefix("? AS "))
-           .of(keyColumns, nonKeyColumns);
-    builder.append(") AS incoming on (");
+        .delimitedBy(",")
+        .transformedBy(ExpressionBuilder.columnNames())
+        .of(keyColumns, nonKeyColumns);
+    builder.append(") SELECT ");
+    builder.append(" WHERE NOT EXISTS (SELECT * FROM ");
+    builder.append(table);
+    builder.append(" WITH (UPDLOCK, SERIALIZABLE) WHERE ");
     builder.appendList()
-           .delimitedBy(" and ")
-           .transformedBy(this::transformAs)
-           .of(keyColumns);
-    builder.append(")");
-    if (nonKeyColumns != null && !nonKeyColumns.isEmpty()) {
-      builder.append(" when matched then update set ");
-      builder.appendList()
-             .delimitedBy(",")
-             .transformedBy(this::transformUpdate)
-             .of(nonKeyColumns);
-    }
-    builder.append(" when not matched then insert (");
+        .delimitedBy(" AND ")
+        .transformedBy(this.columnNamesVariableCondition())
+        .of(keyColumns);
+    builder.append(" ); IF (@@ROWCOUNT = 0) BEGIN ");
+    // OR UPDATE
+    builder.append("UPDATE TOP (1) ");
+    builder.append(table);
+    builder.append(" SET ");
     builder.appendList()
-           .delimitedBy(", ")
-           .transformedBy(ExpressionBuilder.columnNames())
-           .of(nonKeyColumns, keyColumns);
-    builder.append(") values (");
+        .delimitedBy(", ")
+        .transformedBy(this.columnNamesVariableCondition())
+        .of(keyColumns, nonKeyColumns);
+    builder.append(" WHERE ");
     builder.appendList()
-           .delimitedBy(",")
-           .transformedBy(ExpressionBuilder.columnNamesWithPrefix("incoming."))
-           .of(nonKeyColumns, keyColumns);
-    builder.append(");");
+        .delimitedBy(" AND ")
+        .transformedBy(this.columnNamesVariableCondition())
+        .of(keyColumns);
+    builder.append("END; END;");
     return builder.toString();
   }
 
   /**
-   * If Sql Server is 2016 or newer, and time stamp mode configured against a datetime column
+   * If Sql Server is 2016 or newer, and time stamp mode configured against a
+   * datetime column
    * kill task.
-   * Datetime as a Timestamp column is not supported for these versions because a Datetime casting
-   * error causes our connector to loop on the most recent record. The error arises because JDBC
-   * handles all timestamp columns as {@link java.sql.Time} and by extension to a greater precision
-   * than supported by Datetime. Since Datetime is only accurate to 3.33 MS it casts itself
-   * a higher precision recursively (3.333333 MS). However JDBC casts to higher precision
+   * Datetime as a Timestamp column is not supported for these versions because a
+   * Datetime casting
+   * error causes our connector to loop on the most recent record. The error
+   * arises because JDBC
+   * handles all timestamp columns as {@link java.sql.Time} and by extension to a
+   * greater precision
+   * than supported by Datetime. Since Datetime is only accurate to 3.33 MS it
+   * casts itself
+   * a higher precision recursively (3.333333 MS). However JDBC casts to higher
+   * precision
    * non recursively (3.330000 MS). This disparity causes looping.
-   * Older MSSQL Server instances do not have this problem because it casts non-recursively.
-   * References: http://www.dbdelta.com/sql-server-2016-and-azure-sql-database-v12-breaking-change/
+   * Older MSSQL Server instances do not have this problem because it casts
+   * non-recursively.
+   * References:
+   * http://www.dbdelta.com/sql-server-2016-and-azure-sql-database-v12-breaking-change/
    *
-   * @param rsMetadata          the result set metadata; may not be null
-   * @param columns             the timestamp columns configured; may not be null
-   * @throws ConnectException   if column type not compatible with connector
-   *                            or if there is an error accessing the result set metadata
+   * @param rsMetadata the result set metadata; may not be null
+   * @param columns    the timestamp columns configured; may not be null
+   * @throws ConnectException if column type not compatible with connector
+   *                          or if there is an error accessing the result set
+   *                          metadata
    */
   @Override
   public void validateSpecificColumnTypes(
-          ResultSetMetaData rsMetadata,
-          List<ColumnId> columns
-  ) throws ConnectException {
+      ResultSetMetaData rsMetadata,
+      List<ColumnId> columns) throws ConnectException {
     List<ColumnId> timestampColumns = columns;
     if (verifiedSqlServerTimestamp) {
       return;
@@ -472,10 +549,10 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
         for (int i = 0; i < rsMetadata.getColumnCount(); i++) {
           // columns in the meta data is indexed starting at 1 (not 0).
           if (rsMetadata.getColumnTypeName(i + 1).equals(DATETIME)) {
-            for (ColumnId id: timestampColumns) {
+            for (ColumnId id : timestampColumns) {
               if (id.name().equals(rsMetadata.getColumnName(i + 1))) {
                 throw new ConnectException(
-                        "A DATETIME column is configured for " + TIMESTAMP_COLUMN_NAME_CONFIG
+                    "A DATETIME column is configured for " + TIMESTAMP_COLUMN_NAME_CONFIG
                         + " with Sql Server. DATETIME is not supported. Use DATETIME2 instead.");
               }
             }
@@ -483,7 +560,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
         }
       } catch (SQLException sqlException) {
         throw new ConnectException("Failed to get table meta data"
-                + "while verifying Timestamp column type:", sqlException);
+            + "while verifying Timestamp column type:", sqlException);
       }
     }
     verifiedSqlServerTimestamp = true;
@@ -506,8 +583,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
       Boolean caseSensitive,
       Boolean searchable,
       Boolean currency,
-      Boolean isPrimaryKey
-  ) {
+      Boolean isPrimaryKey) {
     try {
       String isAutoIncremented = resultSet.getString(22);
 
@@ -521,45 +597,32 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
     }
 
     return super.columnDefinition(
-      resultSet,
-      id,
-      jdbcType,
-      typeName,
-      classNameForType,
-      nullability,
-      mutability,
-      precision,
-      scale,
-      signedNumbers,
-      displaySize,
-      autoIncremented,
-      caseSensitive,
-      searchable,
-      currency,
-      isPrimaryKey
-    );
-  }
-
-  private void transformAs(ExpressionBuilder builder, ColumnId col) {
-    builder.append("target.")
-           .appendColumnName(col.name())
-           .append("=incoming.")
-           .appendColumnName(col.name());
-  }
-
-  private void transformUpdate(ExpressionBuilder builder, ColumnId col) {
-    builder.appendColumnName(col.name())
-           .append("=incoming.")
-           .appendColumnName(col.name());
+        resultSet,
+        id,
+        jdbcType,
+        typeName,
+        classNameForType,
+        nullability,
+        mutability,
+        precision,
+        scale,
+        signedNumbers,
+        displaySize,
+        autoIncremented,
+        caseSensitive,
+        searchable,
+        currency,
+        isPrimaryKey);
   }
 
   @Override
   protected String sanitizedUrl(String url) {
-    // SQL Server has semicolon delimited property name-value pairs, and several properties
+    // SQL Server has semicolon delimited property name-value pairs, and several
+    // properties
     // that contain secrets
     return super.sanitizedUrl(url)
-                .replaceAll("(?i)(;password=)[^;]*", "$1****")
-                .replaceAll("(?i)(;keyStoreSecret=)[^;]*", "$1****")
-                .replaceAll("(?i)(;gsscredential=)[^;]*", "$1****");
+        .replaceAll("(?i)(;password=)[^;]*", "$1****")
+        .replaceAll("(?i)(;keyStoreSecret=)[^;]*", "$1****")
+        .replaceAll("(?i)(;gsscredential=)[^;]*", "$1****");
   }
 }
