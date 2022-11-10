@@ -404,6 +404,26 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
     return Collections.singletonList(builder.toString());
   }
 
+  protected String getRealTypeName(ColumnDefinition defn) {
+    String realType = defn.typeName();
+    switch (realType) {
+      case "varchar":
+        if (defn.displaySize() == 0) {
+          realType = "varchar(max)";
+        } else {
+          realType = String.format("varchar(%s)", defn.displaySize());
+        }
+        break;
+      case "numeric":
+      case "decimal":
+        realType = String.format(realType + "(%s,%s)", defn.precision(), defn.scale());
+        break;
+      default:
+        break;
+    }
+    return realType;
+  }
+
   protected Transform<ColumnId> columnValueVariables(
       TableDefinition tableDefn,
       final boolean isDeclaration) {
@@ -413,8 +433,8 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
         builder.append("DECLARE @");
         builder.append(columnId.name());
         builder.append(" ");
-        builder.append(defn.typeName());
-        builder.append(" = ?;");
+        builder.append(this.getRealTypeName(defn));
+        builder.append(" = ?");
       };
     } else {
       return (builder, columnId) -> {
@@ -461,7 +481,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
     // builder.append("TRANSACTION ISOLATION LEVEL SERIALIZABLE;");
     // Declaration
     builder.appendList()
-        .delimitedBy(";")
+        .delimitedBy("; ")
         .transformedBy(this.columnValueVariables(tableDefn, true))
         .of(keyColumns, nonKeyColumns);
     // INSERT
@@ -484,6 +504,10 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
         .transformedBy(ExpressionBuilder.columnNames())
         .of(keyColumns, nonKeyColumns);
     builder.append(") SELECT ");
+    builder.appendList()
+        .delimitedBy(",")
+        .transformedBy(this.columnValueVariables(tableDefn, false))
+        .of(keyColumns, nonKeyColumns);
     builder.append(" WHERE NOT EXISTS (SELECT * FROM ");
     builder.append(table);
     builder.append(" WITH (UPDLOCK, SERIALIZABLE) WHERE ");
@@ -505,7 +529,7 @@ public class SqlServerDatabaseDialect extends GenericDatabaseDialect {
         .delimitedBy(" AND ")
         .transformedBy(this.columnNamesVariableCondition())
         .of(keyColumns);
-    builder.append("END; END;");
+    builder.append(" END; END;");
     return builder.toString();
   }
 
